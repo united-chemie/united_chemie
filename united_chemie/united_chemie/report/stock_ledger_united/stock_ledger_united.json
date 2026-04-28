@@ -1,0 +1,39 @@
+{
+ "add_total_row": 0,
+ "columns": [],
+ "creation": "2025-01-27 18:19:47.735089",
+ "disable_prepared_report": 0,
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "filters": [],
+ "idx": 0,
+ "is_standard": "Yes",
+ "json": "{}",
+ "modified": "2025-01-27 18:19:51.572020",
+ "modified_by": "Administrator",
+ "module": "United Chemie",
+ "name": "Stock Ledger United",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "ref_doctype": "Stock Entry",
+ "report_name": "Stock Ledger United",
+ "report_type": "Script Report",
+ "roles": [
+  {
+   "role": "Stock User"
+  },
+  {
+   "role": "Manufacturing User"
+  },
+  {
+   "role": "Manufacturing Manager"
+  },
+  {
+   "role": "Stock Manager"
+  },
+  {
+   "role": "Quality Manager"
+  }
+ ]
+}
