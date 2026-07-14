@@ -259,7 +259,7 @@ from united_chemie.united_chemie.override.asset import custom_get_depreciation_a
 asset_depreciation_schedule.get_depreciation_amount = custom_get_depreciation_amount
 # from finbyzerp.finbyzerp.doc_events import stock_entry
 from united_chemie.united_chemie.override.stock_entry_override import custom_create_quality_inspection_entry
-# stock_entry.create_quality_inspection_entry = custom_create_quality_inspection_entry
+stock_entry.create_quality_inspection_entry = custom_create_quality_inspection_entry
 
 fixtures = [
        {
