@@ -257,7 +257,8 @@ ItemGSTDetails.update_item_tax_details = update_item_tax_details_
 from erpnext.assets.doctype.asset_depreciation_schedule import asset_depreciation_schedule
 from united_chemie.united_chemie.override.asset import custom_get_depreciation_amount
 asset_depreciation_schedule.get_depreciation_amount = custom_get_depreciation_amount
-# from finbyzerp.finbyzerp.doc_events import stock_entry
+
+from finbyzerp.finbyzerp.doc_events import stock_entry
 from united_chemie.united_chemie.override.stock_entry_override import custom_create_quality_inspection_entry
 stock_entry.create_quality_inspection_entry = custom_create_quality_inspection_entry
 
