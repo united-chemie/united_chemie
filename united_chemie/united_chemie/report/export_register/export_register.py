@@ -44,8 +44,9 @@ def get_columns():
         {"label":"RECEIPT DATE(BRC)","fieldname":"payment_date", "fieldtype":"Date", "width":120},	
         {"label": "RECEIVED AMOUNT(payment)", "fieldname": "paid_amount","width": 120},
         {"label": "IRM NUMBER", "fieldname": "irm_number","width": 100},
-        {"label": "BRC NUMBER", "fieldname": "brc_number", "width": 100},
+        {"label": "BRC NUMBER", "fieldname": "brc_no", "width": 100},
         {"label": "BRC DATE", "fieldname": "brc_date", "fieldtype": "Date", "width": 100},
+        {"label": "BRC Amount", "fieldname": "brc_amount", "width": 100},
         {"label": "EGM NUMBER", "fieldname": "egm_number", "width": 100},
         {"label": "EGM DATE", "fieldname": "egm_date", "fieldtype": "Date", "width": 100},
         {"label": "INVOICE VALUE-Rs.", "fieldname": "base_total", "width": 120},
@@ -92,7 +93,7 @@ def get_data(filters):
             si.bl_no,si.bl_date,si.egm_number,si.egm_date,si.pss_sent_dt,si.base_total,si.port_of_loading,si.port_of_discharge,si.port_of_loading,
             si.country_of_destination,si.base_freight,si.base_insurance,si.total_fob_value,si.po_date,si.po_setteled_against_inv_no,si.pss_approval_date,si.etd_factory_date,si.etd_port_date,si.remarks,
             sii.item_name,sii.sales_order,sii.qty,ROUND(sii.rate,4) AS rate,sii.amount,
-            brc.brc_number,brc.brc_date,brcp.payment_date,ROUND(brcp.paid_amount,2) AS paid_amount,brc.irm_number,
+            si.brc_no,si.brc_date,si.brc_amount,brcp.payment_date,ROUND(brcp.paid_amount,2) AS paid_amount,brc.irm_number,
             so.consignee_order_no,so.consignee_order_date,(ROUND((si.freight - si.insurance) * si.conversion_rate, 2)) AS fob_value_as_per_brc
         FROM
             `tabSales Invoice` si
