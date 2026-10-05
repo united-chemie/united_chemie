@@ -138,7 +138,7 @@ doc_events = {
     },
     "Stock Entry": {
         "validate": "united_chemie.united_chemie.doc_events.stock_entry.validate",
-    }
+    },
     "Purchase Invoice": {
         "validate": "united_chemie.united_chemie.doc_events.purchase_invoice.validate_conversion_rate_purchase_invoice",
         "before_submit": "united_chemie.united_chemie.doc_events.purchase_invoice.validate_conversion_rate_purchase_invoice"
