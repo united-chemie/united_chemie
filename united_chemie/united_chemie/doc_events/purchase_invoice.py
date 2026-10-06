@@ -9,7 +9,7 @@ def validate_conversion_rate_purchase_invoice(doc, method=None):
         return
 
     old_doc = doc.get_doc_before_save()
-    if old_doc and flt(doc.conversion_rate) != flt(old_doc.conversionrate):
+    if old_doc and flt(doc.conversion_rate) != flt(old_doc.conversion_rate):
         frappe.throw(("Conversion Rate cannot be changed."))
 
 
