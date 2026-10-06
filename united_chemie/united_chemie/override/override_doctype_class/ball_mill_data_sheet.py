@@ -95,3 +95,6 @@ class BallMillDataSheet(_BallMillDataSheet):
 			if se.docstatus == 0:
 				se.flags.ignore_validate = True
 				se.submit()
+			
+			if se.batch_yield:
+				self.db_set('batch_yield',se.batch_yield)

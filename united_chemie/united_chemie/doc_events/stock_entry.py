@@ -1,4 +1,5 @@
 import frappe
+from frappe.utils import flt
 
 def validate(self, method):
     if self.stock_entry_type == "Manufacture" and self.work_order:
