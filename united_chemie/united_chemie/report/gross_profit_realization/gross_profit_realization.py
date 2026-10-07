@@ -1188,6 +1188,9 @@ def execute(filters=None):
     loading_unloading_charges = get_loading_unloading_charges()
     insurance_charges = get_insurance_charges()
     foreign_bank_charges = get_foreign_bank_charges()
+
+    # --- Packing Expense from Material Issue Stock Entries ---
+    packing_expense_material_issue = get_packing_expense_from_material_issue()
     
     # --- Columns setup ---
     group_wise_columns = frappe._dict({
@@ -1219,7 +1222,7 @@ def execute(filters=None):
         sales_invoice_name = None
         
         if isinstance(row, dict):
-            sales_invoice_name = row.get('sales_invoice') or row.get('invoice_or_item') or row.get('parent_invoice')
+            sales_invoice_name = row.get('parent_invoice') or row.get('sales_invoice') or row.get('invoice_or_item')
         
         if sales_invoice_name:
             expence_accounts_for_invoice = sales_invoice_expenses.get(sales_invoice_name, [])
@@ -1236,7 +1239,13 @@ def execute(filters=None):
             
             # Set Foreign Bank Charges (always in INR/company currency)
             row['foreign_bank_charges'] = foreign_bank_charges.get(sales_invoice_name, 0.0)
+
+            # Packing Expense from Material Issue Stock Entry
+            material_issue_packing_expense = packing_expense_material_issue.get(sales_invoice_name, 0.0)
+            packing_expense = (flt(row.get(scrub("Packing Expense - UCPL"), 0.0)) + flt(material_issue_packing_expense))
             
+            row[scrub("Packing Expense - UCPL")] = packing_expense
+
             # SIMPLE CALCULATION: Sum only the three main columns shown in your image
             total_indirect_expence = (
                 flt(row.get('debit_in_account_currency', 0.0)) +  # Loading Unloading Charges
@@ -1245,7 +1254,7 @@ def execute(filters=None):
                 flt(row.get(scrub("Export Bank Charges - UCPL"), 0.0)) +  # Export Bank Charges
                 flt(row.get(scrub("Export Expense - UCPL"), 0.0)) +       # Export Expense
                 flt(row.get(scrub("Freight Outward - UCPL"), 0.0)) +      # Freight Outward
-                flt(row.get(scrub("Packing Expense - UCPL"), 0.0)) +      # Packing Expense
+                packing_expense +
                 flt(row.get(scrub("Selling Commission - UCPL"), 0.0))  # Selling Commission
             )
 
@@ -1269,6 +1278,44 @@ def execute(filters=None):
 
     return columns, data, None, chart_data
 
+def get_packing_expense_from_material_issue():
+    """
+    Get Packing Expense from Material Issue Stock Entries
+    linked to Sales Invoice through Stock Entry Detail.indirect_expense_for_sales.
+
+    Only submitted Material Issue Stock Entries are considered.
+    The expense amount is taken from Stock Entry Detail.amount.
+    """
+
+    packing_expense_data = frappe.db.sql("""
+        SELECT
+            sed.indirect_expense_for_sales AS sales_invoice,
+            SUM(sed.amount) AS packing_expense
+        FROM
+            `tabStock Entry Detail` sed
+        INNER JOIN
+            `tabStock Entry` se
+            ON sed.parent = se.name
+        INNER JOIN
+            `tabSales Invoice` si
+            ON sed.indirect_expense_for_sales = si.name
+            AND si.docstatus = 1
+        WHERE
+            se.docstatus = 1
+            AND se.purpose = 'Material Issue'
+            AND sed.indirect_expense_for_sales IS NOT NULL
+            AND sed.indirect_expense_for_sales != ''
+        GROUP BY
+            sed.indirect_expense_for_sales
+    """, as_dict=1)
+
+    packing_expense_dict = {}
+
+    for row in packing_expense_data:
+        if row.sales_invoice:
+            packing_expense_dict[row.sales_invoice] = flt(row.packing_expense)
+
+    return packing_expense_dict
 
 def get_loading_unloading_charges():
     """

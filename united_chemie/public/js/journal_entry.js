@@ -13,6 +13,10 @@ frappe.ui.form.on('Journal Entry', {
     }
 });
 
+erpnext.journal_entry.lock_reversal_entry = function(frm) {
+    // Implementation for locking reversal entry
+};
+
 async function set_due_date_based_on_payment_terms(frm) {
     let posting_date = frm.doc.posting_date;
     let payment_terms = 0;
