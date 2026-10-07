@@ -1814,7 +1814,7 @@ class GrossProfitGenerator(object):
             conditions += " and `tabSales Invoice Item`.item_code = %(item_code)s"
 
         self.si_list = frappe.db.sql("""
-            select
+            SELECT
                 `tabSales Invoice Item`.parenttype,
                 `tabSales Invoice Item`.parent,
                 `tabSales Invoice`.posting_date,
@@ -1828,15 +1828,31 @@ class GrossProfitGenerator(object):
                 `tabSales Invoice Item`.item_code,
                 `tabSales Invoice Item`.item_name,
                 `tabSales Invoice Item`.description,
-                `tabSales Invoice Item`.warehouse,
+
+                CASE
+                    WHEN `tabSales Invoice`.update_stock = 1
+                        THEN `tabSales Invoice Item`.warehouse
+                    WHEN dni.name IS NOT NULL
+                        THEN dni.warehouse
+                    ELSE `tabSales Invoice Item`.warehouse
+                END AS warehouse,
+
                 `tabSales Invoice Item`.item_group,
                 `tabSales Invoice Item`.brand,
-                `tabSales Invoice Item`.dn_detail,
-                `tabSales Invoice Item`.delivery_note,
-                `tabSales Invoice Item`.stock_qty as qty,
+
+                dni.name AS dn_detail,
+                dni.parent AS delivery_note,
+
+                CASE
+                    WHEN dni.name IS NOT NULL
+                        THEN dni.name
+                    ELSE `tabSales Invoice Item`.name
+                END AS item_row,
+
+                `tabSales Invoice Item`.stock_qty AS qty,
                 `tabSales Invoice Item`.base_net_rate,
                 `tabSales Invoice Item`.base_net_amount,
-                `tabSales Invoice Item`.name as "item_row",
+
                 `tabSales Invoice`.is_return,
                 `tabSales Invoice`.final_destination,
                 `tabSales Invoice Item`.cost_center,
@@ -1846,19 +1862,44 @@ class GrossProfitGenerator(object):
                 `tabSales Invoice Item`.rate,
                 `tabSales Invoice Item`.no_of_packages,
                 `tabSales Invoice Item`.packaging_material
-            from
+
+            FROM
                 `tabSales Invoice`
-            inner join
-                `tabSales Invoice Item` on `tabSales Invoice Item`.parent = `tabSales Invoice`.name
+
+            INNER JOIN
+                `tabSales Invoice Item`
+                ON `tabSales Invoice Item`.parent = `tabSales Invoice`.name
+
+            LEFT JOIN (
+                SELECT
+                    dni.name,
+                    dni.parent,
+                    dni.against_sales_invoice,
+                    dni.si_detail,
+                    dni.warehouse
+                FROM
+                    `tabDelivery Note Item` dni
+                INNER JOIN
+                    `tabDelivery Note` dn
+                    ON dn.name = dni.parent
+                WHERE
+                    dn.docstatus = 1
+            ) dni
+                ON dni.against_sales_invoice = `tabSales Invoice`.name
+                AND dni.si_detail = `tabSales Invoice Item`.name
+
             {sales_team_table}
-            where
+
+            WHERE
                 `tabSales Invoice`.docstatus = 1
-                and `tabSales Invoice`.is_opening != 'Yes'
+                AND `tabSales Invoice`.is_opening != 'Yes'
                 {conditions}
                 {match_cond}
-            order by
-                `tabSales Invoice`.posting_date desc,
-                `tabSales Invoice`.posting_time desc
+
+            ORDER BY
+                `tabSales Invoice`.posting_date DESC,
+                `tabSales Invoice`.posting_time DESC
+
         """.format(
             conditions=conditions,
             sales_team_table=sales_team_table,
@@ -2066,12 +2107,11 @@ class GrossProfitGenerator(object):
         else:
             my_sle = self.sle.get((item_code, row.warehouse))
             if (row.update_stock or row.dn_detail) and my_sle:
-                parenttype, parent = row.parenttype, row.parent
+                parenttype, parent, item_row = row.parenttype, row.parent, row.item_row
                 if row.dn_detail:
-                    parenttype, parent = "Delivery Note", row.delivery_note
-
+                    parenttype, parent, item_row = "Delivery Note", row.delivery_note, row.dn_detail
                 for i, sle in enumerate(my_sle):
-                    if (sle.voucher_type == parenttype and parent == sle.voucher_no and sle.voucher_detail_no == row.item_row):
+                    if (sle.voucher_type == parenttype and parent == sle.voucher_no and sle.voucher_detail_no == item_row):
                         previous_stock_value = len(my_sle) > i + 1 and flt(my_sle[i + 1].stock_value) or 0.0
                         if previous_stock_value:
                             return (previous_stock_value - flt(sle.stock_value)) * flt(row.qty) / abs(flt(sle.qty))
