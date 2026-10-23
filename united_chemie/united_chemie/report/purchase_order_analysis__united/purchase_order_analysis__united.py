@@ -1,7 +1,5 @@
 # Copyright (c) 2013, Frappe Technologies Pvt. Ltd. and contributors
 # For license information, please see license.txt
-
-
 import copy
 
 import frappe
@@ -50,7 +48,7 @@ def get_data(filters):
 		.left_join(pi_item)
 		.on(pi_item.po_detail == po_item.name)
 		.left_join(pi)
-		.on(pi.name == pi_item.parent)
+		.on((pi.name == pi_item.parent) & (pi.docstatus == 1))
 		.select(
 			po.transaction_date.as_("date"),
 			po_item.schedule_date.as_("required_date"),
@@ -60,6 +58,8 @@ def get_data(filters):
 			po.supplier,
 			po_item.item_code,
 			po_item.qty,
+			po_item.base_rate.as_("rate_inr"),
+			po_item.rate.as_("rate_fc"),
 			po_item.received_qty,
 			(po_item.qty - po_item.received_qty).as_("pending_qty"),
 			Sum(IfNull(pi_item.qty, 0)).as_("billed_qty"),
@@ -71,10 +71,11 @@ def get_data(filters):
 			),
 			po.set_warehouse.as_("warehouse"),
 			po.company,
+			po.currency,
 			po_item.name,
 		)
 		.where(
-			(po_item.parent == po.name) & (po.status.notin(("Stopped",))) & (po.docstatus == 1) & (pi.docstatus == 1)
+			(po_item.parent == po.name) & (po.status.notin(("Stopped",))) & (po.docstatus == 1)
 		)
 		.groupby(po_item.name)
 		.orderby(po.transaction_date)
@@ -211,6 +212,22 @@ def get_columns(filters):
 				"fieldtype": "Float",
 				"width": 120,
 				"convertible": "qty",
+			},
+			{
+				"label": _("Rate (INR)"),
+				"fieldname": "rate_inr",
+				"fieldtype": "Currency",
+				"width": 110,
+				"options": "Company:company:default_currency",
+				"convertible": "rate",
+			},
+			{
+				"label": _("Rate (FC)"),
+				"fieldname": "rate_fc",
+				"fieldtype": "Currency",
+				"width": 110,
+				"options": "currency",
+				"convertible": "rate",
 			},
 			{
 				"label": _("Received Qty"),
