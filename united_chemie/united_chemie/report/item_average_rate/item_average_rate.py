@@ -61,6 +61,7 @@ def get_purchase_receipt_data(filters, periods):
 			pri.item_name,
 			item.item_group,
 			pr.posting_date,
+			item.last_purchase_rate,
 			pri.qty,
 			pri.base_amount.as_("amount"),
 			pri.base_rate.as_("rate"),
@@ -133,6 +134,7 @@ def format_rows(rows, periods=None):
 				item_code=source_row.item_code,
 				item_name=source_row.item_name,
 				item_group=source_row.item_group,
+				last_purchase_rate=flt(source_row.get("last_purchase_rate")),
 				qty=0,
 				amount=0,
 				high_rate=None,
@@ -204,6 +206,7 @@ def get_columns(periods):
 		[
 			{"label": _("Total Qty"), "fieldname": "qty", "fieldtype": "Float", "width": 115, "convertible": "qty"},
 			{"label": _("Total Amount"), "fieldname": "amount", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 135},
+			{"label": _("Last Purchase Rate"), "fieldname": "last_purchase_rate", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 135},
 			{"label": _("Average Rate"), "fieldname": "average_rate", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 130},
 			{"label": _("High Rate"), "fieldname": "high_rate", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 120},
 			{"label": _("Low Rate"), "fieldname": "low_rate", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 120},
