@@ -1,5 +1,7 @@
 # Copyright (c) 2013, Frappe Technologies Pvt. Ltd. and contributors
 # For license information, please see license.txt
+
+
 import copy
 
 import frappe
@@ -183,6 +185,13 @@ def get_columns(filters):
 			"fieldtype": "Link",
 			"options": "Supplier",
 			"width": 130,
+		},
+		{
+			"label": _("Billing Currency"),
+			"fieldname": "currency",
+			"fieldtype": "Link",
+			"options": "Currency",
+			"width": 110,
 		},
 		{
 			"label": _("Project"),

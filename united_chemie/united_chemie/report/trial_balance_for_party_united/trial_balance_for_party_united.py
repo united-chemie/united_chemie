@@ -115,6 +115,8 @@ def get_data(filters, show_party_name, show_foreign_currency=False):
 					"closing_debit_fc": flt(closing_debit_fc, precision),
 					"closing_credit_fc": flt(closing_credit_fc, precision),
 					"fc_currency": party.default_currency or company_currency,
+					# Customer/Supplier master uses default_currency as its billing currency.
+					"billing_currency": party.default_currency or company_currency,
 				}
 			)
 
@@ -131,7 +133,9 @@ def get_data(filters, show_party_name, show_foreign_currency=False):
 			for col in total_row:
 				total_row[col] += row.get(col)
 
-	total_row.update({"party": "'" + _("Totals") + "'", "currency": company_currency})
+	total_row.update(
+		{"party": "'" + _("Totals") + "'", "currency": company_currency, "billing_currency": company_currency}
+	)
 	data.append(total_row)
 
 	return data
@@ -294,6 +298,16 @@ def get_columns(filters, show_party_name, show_foreign_currency=False):
 		)
 
 	if show_foreign_currency:
+		columns.insert(
+			2 if show_party_name else 1,
+			{
+				"fieldname": "billing_currency",
+				"label": _("Billing Currency"),
+				"fieldtype": "Link",
+				"options": "Currency",
+				"width": 120,
+			},
+		)
 		fc_columns = [
 			("opening_debit_fc", _("Opening (Dr) FC")),
 			("opening_credit_fc", _("Opening (Cr) FC")),
