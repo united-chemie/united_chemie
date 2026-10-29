@@ -89,5 +89,45 @@ frappe.query_reports["Item Average Rate"] = {
 			default: "Purchase Receipt",
 			reqd: 1,
 		},
+		{
+			fieldname: "filter_by_warehouse",
+			label: __("Warehouse"),
+			fieldtype: "Check",
+			default: 0,
+			on_change() {
+				const is_checked = frappe.query_report.get_filter_value("filter_by_warehouse");
+				const warehouse_filter = frappe.query_report.get_filter("warehouse");
+				if (warehouse_filter) {
+					warehouse_filter.df.hidden = !is_checked;
+				}
+				frappe.query_report.toggle_filter_display("warehouse", !is_checked);
+				if (!is_checked) {
+					frappe.query_report.set_filter_value("warehouse", "");
+				}
+				frappe.query_report.refresh();
+			},
+		},
+		{
+			fieldname: "warehouse",
+			label: __("Warehouse"),
+			fieldtype: "Link",
+			options: "Warehouse",
+			hidden: 1,
+			depends_on: "eval:doc.filter_by_warehouse",
+			get_query() {
+				const company = frappe.query_report.get_filter_value("company");
+				return {
+					filters: { company: company },
+				};
+			},
+		},
 	],
+	onload(report) {
+		const is_checked = report.get_filter_value("filter_by_warehouse");
+		const warehouse_filter = report.get_filter("warehouse");
+		if (warehouse_filter) {
+			warehouse_filter.df.hidden = !is_checked;
+		}
+		report.toggle_filter_display("warehouse", !is_checked);
+	},
 };

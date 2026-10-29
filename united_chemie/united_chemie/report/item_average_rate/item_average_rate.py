@@ -15,8 +15,8 @@ def execute(filters=None):
 
 	periods = get_periods(filters)
 	rows = get_manufacture_data(filters, periods) if filters.type == "Manufacture" else get_purchase_receipt_data(filters, periods)
-	data = format_rows(rows, periods)
-	return get_columns(periods), data, None, get_chart_data(data, filters)
+	data = format_rows(rows, periods, filters)
+	return get_columns(periods, filters), data, None, get_chart_data(data, filters)
 
 
 def validate_filters(filters):
@@ -60,11 +60,13 @@ def get_purchase_receipt_data(filters, periods):
 			pri.item_code,
 			pri.item_name,
 			item.item_group,
+			pri.warehouse,
 			pr.posting_date,
-			item.last_purchase_rate,
 			pri.qty,
 			pri.base_amount.as_("amount"),
 			pri.base_rate.as_("rate"),
+			pri.landed_cost_voucher_amount.as_("landed_cost_amount"),
+			pri.valuation_rate,
 		)
 		.where((pr.docstatus == 1) & (pr.company == filters.company))
 		.where(pr.posting_date.between(periods[0][0], periods[-1][1]))
@@ -72,7 +74,9 @@ def get_purchase_receipt_data(filters, periods):
 	)
 	query = apply_item_filters(query, item, pri, filters)
 	query = apply_date_filters(query, pr.posting_date, filters)
-	return format_rows(query.run(as_dict=True))
+	if filters.get("warehouse"):
+		query = query.where(pri.warehouse == filters.warehouse)
+	return query.run(as_dict=True)
 
 
 def get_manufacture_data(filters, periods):
@@ -90,10 +94,12 @@ def get_manufacture_data(filters, periods):
 			sed.item_code,
 			sed.item_name,
 			item.item_group,
+			sed.t_warehouse.as_("warehouse"),
 			se.posting_date,
 			sed.qty,
 			sed.amount,
 			sed.basic_rate.as_("rate"),
+			sed.valuation_rate,
 		)
 		.where((se.docstatus == 1) & (se.company == filters.company))
 		.where((se.purpose == "Manufacture") & (sed.t_warehouse.isnotnull()))
@@ -102,7 +108,9 @@ def get_manufacture_data(filters, periods):
 	)
 	query = apply_item_filters(query, item, sed, filters)
 	query = apply_date_filters(query, se.posting_date, filters)
-	return format_rows(query.run(as_dict=True))
+	if filters.get("warehouse"):
+		query = query.where(sed.t_warehouse == filters.warehouse)
+	return query.run(as_dict=True)
 
 
 def apply_item_filters(query, item, detail, filters):
@@ -121,45 +129,98 @@ def apply_date_filters(query, posting_date, filters):
 	return query
 
 
-def format_rows(rows, periods=None):
+def format_rows(rows, periods=None, filters=None):
 	# When called with raw rows, make one item row and populate each fiscal period.
 	if periods is None:
 		return rows
 
+	filters = filters or {}
+	group_by_warehouse = bool(
+		filters.get("filter_by_warehouse")
+		or filters.get("show_warehouse")
+		or filters.get("warehouse_filter")
+		or filters.get("warehouse")
+	)
+
 	data = {}
 	for source_row in rows:
-		key = (source_row.item_code, source_row.item_group)
+		warehouse = source_row.get("warehouse") or ""
+		if group_by_warehouse:
+			key = (source_row.item_code, source_row.item_group, warehouse)
+		else:
+			key = (source_row.item_code, source_row.item_group)
+
 		if key not in data:
-			data[key] = frappe._dict(
+			row_dict = frappe._dict(
 				item_code=source_row.item_code,
 				item_name=source_row.item_name,
 				item_group=source_row.item_group,
-				last_purchase_rate=flt(source_row.get("last_purchase_rate")),
 				qty=0,
 				amount=0,
+				landed_cost_amount=0,
 				high_rate=None,
+				high_rate_landed_cost=None,
 				low_rate=None,
+				low_rate_landed_cost=None,
 			)
+			if group_by_warehouse:
+				row_dict.warehouse = warehouse
+
 			for index in range(len(periods)):
-				data[key][f"period_{index}_qty"] = 0
-				data[key][f"period_{index}_amount"] = 0
+				row_dict[f"period_{index}_qty"] = 0
+				row_dict[f"period_{index}_amount"] = 0
+				row_dict[f"period_{index}_landed_cost_amount"] = 0
+
+			data[key] = row_dict
 
 		row = data[key]
-		qty, amount, rate = flt(source_row.qty), flt(source_row.amount), flt(source_row.rate)
+		qty = flt(source_row.qty)
+		amount = flt(source_row.amount)
+		rate = flt(source_row.rate)
+		landed_cost_amount = flt(source_row.get("landed_cost_amount"))
+
+		landed_rate = flt(source_row.get("valuation_rate"))
+		if not landed_rate:
+			landed_rate = (amount + landed_cost_amount) / qty if qty else rate
+
 		row.qty += qty
 		row.amount += amount
+		row.landed_cost_amount += landed_cost_amount
+
 		row.high_rate = rate if row.high_rate is None else max(row.high_rate, rate)
 		row.low_rate = rate if row.low_rate is None else min(row.low_rate, rate)
+
+		row.high_rate_landed_cost = (
+			landed_rate if row.high_rate_landed_cost is None else max(row.high_rate_landed_cost, landed_rate)
+		)
+		row.low_rate_landed_cost = (
+			landed_rate if row.low_rate_landed_cost is None else min(row.low_rate_landed_cost, landed_rate)
+		)
 
 		for index, (start_date, end_date) in enumerate(periods):
 			if getdate(start_date) <= getdate(source_row.posting_date) <= getdate(end_date):
 				row[f"period_{index}_qty"] += qty
 				row[f"period_{index}_amount"] += amount
+				row[f"period_{index}_landed_cost_amount"] += landed_cost_amount
 				break
 
 	for row in data.values():
 		row["average_rate"] = flt(row.amount) / flt(row.qty) if flt(row.qty) else 0
-	return sorted(data.values(), key=lambda row: row.item_code)
+		row["average_rate_landed_cost"] = (
+			(flt(row.amount) + flt(row.landed_cost_amount)) / flt(row.qty) if flt(row.qty) else 0
+		)
+		if row.high_rate is None:
+			row.high_rate = 0
+		if row.low_rate is None:
+			row.low_rate = 0
+		if row.high_rate_landed_cost is None:
+			row.high_rate_landed_cost = 0
+		if row.low_rate_landed_cost is None:
+			row.low_rate_landed_cost = 0
+
+	if group_by_warehouse:
+		return sorted(data.values(), key=lambda r: (r.item_code, r.get("warehouse") or ""))
+	return sorted(data.values(), key=lambda r: r.item_code)
 
 
 def get_chart_data(data, filters):
@@ -168,7 +229,12 @@ def get_chart_data(data, filters):
 		return None
 
 	top_items = sorted(data, key=lambda row: flt(row.amount), reverse=True)[:10]
-	labels = [row.item_name or row.item_code for row in top_items]
+	labels = [
+		f"{row.item_name or row.item_code} ({row.warehouse})"
+		if row.get("warehouse")
+		else (row.item_name or row.item_code)
+		for row in top_items
+	]
 	values = [flt(row.amount) for row in top_items]
 	transaction_type = _("Manufacture") if filters.type == "Manufacture" else _("Purchase Receipt")
 
@@ -186,12 +252,25 @@ def get_chart_data(data, filters):
 	}
 
 
-def get_columns(periods):
+def get_columns(periods, filters=None):
+	filters = filters or {}
+	group_by_warehouse = bool(
+		filters.get("filter_by_warehouse")
+		or filters.get("show_warehouse")
+		or filters.get("warehouse_filter")
+		or filters.get("warehouse")
+	)
+
 	columns = [
 		{"label": _("Item"), "fieldname": "item_code", "fieldtype": "Link", "options": "Item", "width": 150},
 		{"label": _("Item Name"), "fieldname": "item_name", "fieldtype": "Data", "width": 180},
 		{"label": _("Item Group"), "fieldname": "item_group", "fieldtype": "Link", "options": "Item Group", "width": 150},
 	]
+
+	if group_by_warehouse:
+		columns.append(
+			{"label": _("Warehouse"), "fieldname": "warehouse", "fieldtype": "Link", "options": "Warehouse", "width": 140}
+		)
 
 	for index, (start_date, end_date) in enumerate(periods):
 		label = get_period_label(start_date, end_date)
@@ -199,6 +278,7 @@ def get_columns(periods):
 			[
 				{"label": _("{0} (Qty)").format(label), "fieldname": f"period_{index}_qty", "fieldtype": "Float", "width": 115, "convertible": "qty"},
 				{"label": _("{0} (Amt)").format(label), "fieldname": f"period_{index}_amount", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 125},
+				{"label": _("{0} (Landed Cost Amt)").format(label), "fieldname": f"period_{index}_landed_cost_amount", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 140},
 			]
 		)
 
@@ -206,10 +286,13 @@ def get_columns(periods):
 		[
 			{"label": _("Total Qty"), "fieldname": "qty", "fieldtype": "Float", "width": 115, "convertible": "qty"},
 			{"label": _("Total Amount"), "fieldname": "amount", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 135},
-			{"label": _("Last Purchase Rate"), "fieldname": "last_purchase_rate", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 135},
+			{"label": _("Landed Cost Amount"), "fieldname": "landed_cost_amount", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 140},
 			{"label": _("Average Rate"), "fieldname": "average_rate", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 130},
+			{"label": _("Average Rate Landed Cost"), "fieldname": "average_rate_landed_cost", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 150},
 			{"label": _("High Rate"), "fieldname": "high_rate", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 120},
+			{"label": _("High Rate Landed Cost"), "fieldname": "high_rate_landed_cost", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 145},
 			{"label": _("Low Rate"), "fieldname": "low_rate", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 120},
+			{"label": _("Low Rate Landed Cost"), "fieldname": "low_rate_landed_cost", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 145},
 		]
 	)
 	return columns
