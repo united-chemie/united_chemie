@@ -303,3 +303,4 @@ def get_period_label(start_date, end_date):
 	if start_date.month == end_date.month:
 		return start_date.strftime("%b")
 	return f"{start_date.strftime('%b')}-{end_date.strftime('%b')}"
+	
