@@ -158,6 +158,7 @@ def format_rows(rows, periods=None, filters=None):
 				qty=0,
 				amount=0,
 				landed_cost_amount=0,
+				total_landed_cost_amount=0,
 				high_rate=None,
 				high_rate_landed_cost=None,
 				low_rate=None,
@@ -205,6 +206,7 @@ def format_rows(rows, periods=None, filters=None):
 				break
 
 	for row in data.values():
+		row["total_landed_cost_amount"] = flt(row.amount) + flt(row.landed_cost_amount)
 		row["average_rate"] = flt(row.amount) / flt(row.qty) if flt(row.qty) else 0
 		row["average_rate_landed_cost"] = (
 			(flt(row.amount) + flt(row.landed_cost_amount)) / flt(row.qty) if flt(row.qty) else 0
@@ -287,6 +289,7 @@ def get_columns(periods, filters=None):
 			{"label": _("Total Qty"), "fieldname": "qty", "fieldtype": "Float", "width": 115, "convertible": "qty"},
 			{"label": _("Total Amount"), "fieldname": "amount", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 135},
 			{"label": _("Landed Cost Amount"), "fieldname": "landed_cost_amount", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 140},
+			{"label": _("Total + Landed Cost Amount"), "fieldname": "total_landed_cost_amount", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 140},
 			{"label": _("Average Rate"), "fieldname": "average_rate", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 130},
 			{"label": _("Average Rate Landed Cost"), "fieldname": "average_rate_landed_cost", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 150},
 			{"label": _("High Rate"), "fieldname": "high_rate", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 120},
