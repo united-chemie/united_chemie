@@ -8,6 +8,7 @@ from erpnext.controllers.trends import get_period_date_ranges
 from frappe import _
 from frappe.utils import cstr, getdate
 
+from india_compliance.gst_india.constants import GST_TAX_TYPES
 from india_compliance.gst_india.utils.gstr3b.gstr3b_inward_data import (
     INWARD_SECTION_SUB_CATEGORY_MAP,
     GSTR3BInwardInvoices,
@@ -102,7 +103,8 @@ class BaseGSTR3BDetails:
             self.get_filtered_inward_data(),
             key=lambda row: (row["invoice_sub_category"], row["posting_date"]),
         )
-        return self.add_purchase_invoice_details(data)
+        data = self.add_purchase_invoice_details(data)
+        return self.add_actual_tax_amounts(data)
 
     def add_purchase_invoice_details(self, data):
         """Add the Purchase Invoice fields available in the 2B matching details report."""
@@ -118,6 +120,7 @@ class BaseGSTR3BDetails:
             "bill_no",
             "tax_category",
             "net_total",
+            "base_grand_total",
         ]
         for fieldname in (
             "supplier_gstin",
@@ -143,7 +146,47 @@ class BaseGSTR3BDetails:
                     row[fieldname] = invoice.get(fieldname)
 
         return data
+    #SOLUFY changes for Actual TAX Amount for FY 2025-2026
+    def add_actual_tax_amounts(self, data):
+        """Use invoice tax rows when GST is entered with Charge Type = Actual.
 
+        Actual taxes are not necessarily distributed to Purchase Invoice Items,
+        whereas the standard GSTR-3B inward query reads the item tax fields.
+        This report is already grouped by invoice, so the invoice-level tax
+        amount is the correct value to display here.
+        """
+        voucher_nos = list(
+            {
+                row.get("voucher_no")
+                for row in data
+                if row.get("voucher_type") == "Purchase Invoice"
+            }
+        )
+        if not voucher_nos:
+            return data
+
+        actual_taxes = frappe.get_all(
+            "Purchase Taxes and Charges",
+            filters={
+                "parent": ["in", voucher_nos],
+                "charge_type": "Actual",
+                "gst_tax_type": ["in", GST_TAX_TYPES],
+            },
+            fields=["parent", "gst_tax_type", "base_tax_amount_after_discount_amount"],
+        )
+        tax_by_invoice = {}
+        for tax in actual_taxes:
+            fieldname = "cess_amount" if tax.gst_tax_type == "cess_non_advol" else f"{tax.gst_tax_type}_amount"
+            tax_by_invoice.setdefault(tax.parent, {}).setdefault(fieldname, 0)
+            tax_by_invoice[tax.parent][fieldname] += tax.base_tax_amount_after_discount_amount or 0
+
+        for row in data:
+            for fieldname, amount in tax_by_invoice.get(row.get("voucher_no"), {}).items():
+                row[fieldname] = amount
+
+        return data
+    #SOLUFY changes end 
+    
     def add_period_data(self, data, periods):
         amount_fields = self.get_amount_fields()
         for row in data:
@@ -190,6 +233,13 @@ class BaseGSTR3BDetails:
             {
                 "fieldname": "net_total",
                 "label": _("Net Total"),
+                "fieldtype": "Currency",
+                "options": self.company_currency,
+                "width": 120,
+            },
+            {
+                "fieldname": "base_grand_total",
+                "label": _("Invoice Amount"),
                 "fieldtype": "Currency",
                 "options": self.company_currency,
                 "width": 120,
