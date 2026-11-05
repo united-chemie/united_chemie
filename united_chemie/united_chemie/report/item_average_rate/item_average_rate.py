@@ -62,9 +62,10 @@ def get_purchase_receipt_data(filters, periods):
 			item.item_group,
 			pri.warehouse,
 			pr.posting_date,
+			pr.is_return,
 			pri.qty,
-			pri.base_amount.as_("amount"),
-			pri.base_rate.as_("rate"),
+			pri.base_net_amount.as_("amount"),
+			pri.base_net_rate.as_("rate"),
 			pri.landed_cost_voucher_amount.as_("landed_cost_amount"),
 			pri.valuation_rate,
 		)
@@ -132,6 +133,13 @@ def apply_date_filters(query, posting_date, filters):
 def format_rows(rows, periods=None, filters=None):
 	# When called with raw rows, make one item row and populate each fiscal period.
 	if periods is None:
+		for r in rows:
+			is_ret = bool(r.get("is_return") or flt(r.get("qty")) < 0)
+			r["return_qty"] = abs(flt(r.get("qty"))) if is_ret else 0.0
+			r["qty_plus_return"] = flt(r.get("qty")) + flt(r.get("return_qty"))
+			r["return_amount"] = abs(flt(r.get("amount"))) if is_ret else 0.0
+			r["amount_plus_return"] = flt(r.get("amount")) + flt(r.get("return_amount"))
+			r["total_plus_landed_cost"] = flt(flt(r.get("amount_plus_return")) + flt(r.get("landed_cost_amount")), 2)
 		return rows
 
 	filters = filters or {}
@@ -156,9 +164,13 @@ def format_rows(rows, periods=None, filters=None):
 				item_name=source_row.item_name,
 				item_group=source_row.item_group,
 				qty=0,
+				return_qty=0,
+				qty_plus_return=0,
 				amount=0,
+				return_amount=0,
+				amount_plus_return=0,
 				landed_cost_amount=0,
-				total_landed_cost_amount=0,
+				total_plus_landed_cost=0,
 				high_rate=None,
 				high_rate_landed_cost=None,
 				low_rate=None,
@@ -179,12 +191,16 @@ def format_rows(rows, periods=None, filters=None):
 		amount = flt(source_row.amount)
 		rate = flt(source_row.rate)
 		landed_cost_amount = flt(source_row.get("landed_cost_amount"))
+		is_return = bool(source_row.get("is_return") or qty < 0)
 
 		landed_rate = flt(source_row.get("valuation_rate"))
 		if not landed_rate:
 			landed_rate = (amount + landed_cost_amount) / qty if qty else rate
 
 		row.qty += qty
+		if is_return:
+			row.return_qty += abs(qty)
+			row.return_amount += abs(amount)
 		row.amount += amount
 		row.landed_cost_amount += landed_cost_amount
 
@@ -206,7 +222,9 @@ def format_rows(rows, periods=None, filters=None):
 				break
 
 	for row in data.values():
-		row["total_landed_cost_amount"] = flt(row.amount) + flt(row.landed_cost_amount)
+		row["qty_plus_return"] = flt(flt(row.qty) + flt(row.return_qty), 2)
+		row["amount_plus_return"] = flt(flt(row.amount) + flt(row.return_amount), 2)
+		row["total_plus_landed_cost"] = flt(flt(row.amount_plus_return) + flt(row.landed_cost_amount), 2)
 		row["average_rate"] = flt(row.amount) / flt(row.qty) if flt(row.qty) else 0
 		row["average_rate_landed_cost"] = (
 			(flt(row.amount) + flt(row.landed_cost_amount)) / flt(row.qty) if flt(row.qty) else 0
@@ -287,9 +305,13 @@ def get_columns(periods, filters=None):
 	columns.extend(
 		[
 			{"label": _("Total Qty"), "fieldname": "qty", "fieldtype": "Float", "width": 115, "convertible": "qty"},
-			{"label": _("Total Amount"), "fieldname": "amount", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 135},
+			{"label": _("Return Qty"), "fieldname": "return_qty", "fieldtype": "Float", "width": 115, "convertible": "qty"},
+			{"label": _("Qty + Return"), "fieldname": "qty_plus_return", "fieldtype": "Float", "width": 115, "convertible": "qty"},
+			{"label": _("Net Total"), "fieldname": "amount", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 135},
+			{"label": _("Return Amount"), "fieldname": "return_amount", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 135},
+			{"label": _("Amount + Return"), "fieldname": "amount_plus_return", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 140},
 			{"label": _("Landed Cost Amount"), "fieldname": "landed_cost_amount", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 140},
-			{"label": _("Total + Landed Cost Amount"), "fieldname": "total_landed_cost_amount", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 140},
+			{"label": _("Total + Landed Cost"), "fieldname": "total_plus_landed_cost", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 150},
 			{"label": _("Average Rate"), "fieldname": "average_rate", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 130},
 			{"label": _("Average Rate Landed Cost"), "fieldname": "average_rate_landed_cost", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 150},
 			{"label": _("High Rate"), "fieldname": "high_rate", "fieldtype": "Currency", "options": "Company:company:default_currency", "width": 120},
@@ -306,4 +328,3 @@ def get_period_label(start_date, end_date):
 	if start_date.month == end_date.month:
 		return start_date.strftime("%b")
 	return f"{start_date.strftime('%b')}-{end_date.strftime('%b')}"
-	
