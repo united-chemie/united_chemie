@@ -1,4 +1,5 @@
 import frappe
+
 def before_save(self,method):
     calculate_inr_freight(self)
 
@@ -17,3 +18,7 @@ def on_submit(self, method):
         if row.so_detail:
             frappe.db.set_value("Sales Order Item", row.so_detail, "sales_invoice", self.name)
             frappe.db.commit()
+
+def on_update_after_submit(self, method):
+    if self.brc_no:
+        frappe.db.set_value("Export Against AAL", {"sales_invoice": self.name}, "brc_no", self.brc_no)
