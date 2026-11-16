@@ -63,6 +63,7 @@ class RMStockBalanceReport(StockBalanceReport):
 		self.float_precision = cint(frappe.db.get_default("float_precision")) or 3
 
 		self.inventory_dimensions = self.get_inventory_dimension_fields()
+		self.trading_item_groups = self.get_trading_item_groups()
 		self.prepare_opening_data_from_closing_balance()
 		self.prepare_stock_ledger_entries()
 		self.prepare_new_data()
@@ -182,6 +183,16 @@ class RMStockBalanceReport(StockBalanceReport):
 
 		self.sle_query = query
 
+	def get_trading_item_groups(self):
+		groups = {"TRADING"}
+		try:
+			if frappe.db.exists("Item Group", "TRADING"):
+				descendants = get_descendants_of("Item Group", "TRADING", ignore_permissions=True) or []
+				groups.update(descendants)
+		except Exception:
+			pass
+		return {g.upper() for g in groups}
+
 	def prepare_item_warehouse_map(self, item_warehouse_map, entry, group_by_key):
 		qty_dict = item_warehouse_map[group_by_key]
 		for field in self.inventory_dimensions:
@@ -198,10 +209,19 @@ class RMStockBalanceReport(StockBalanceReport):
 
 		elif entry.posting_date >= self.from_date and entry.posting_date <= self.to_date:
 			is_valid_in = (entry.voucher_type == "Purchase Receipt")
-			is_valid_out = (
-				entry.voucher_type == "Stock Entry"
-				and entry.get("stock_entry_purpose") in ("Material Transfer for Manufacture", "Material Issue")
-			)
+
+			item_group = (entry.get("item_group") or "").upper()
+			trading_groups = getattr(self, "trading_item_groups", None)
+			if trading_groups is None:
+				trading_groups = self.trading_item_groups = self.get_trading_item_groups()
+
+			if item_group in trading_groups:
+				is_valid_out = (entry.voucher_type == "Delivery Note")
+			else:
+				is_valid_out = (
+					entry.voucher_type == "Stock Entry"
+					and entry.get("stock_entry_purpose") in ("Material Transfer for Manufacture", "Material Issue")
+				)
 
 			if flt(qty_diff, self.float_precision) >= 0:
 				if is_valid_in:
