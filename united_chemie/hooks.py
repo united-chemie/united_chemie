@@ -135,7 +135,6 @@ doc_events = {
     "Sales Invoice": {
         "before_save": "united_chemie.united_chemie.doc_events.sales_invoice.before_save",
         "on_submit": "united_chemie.united_chemie.doc_events.sales_invoice.on_submit",
-        "on_update": "united_chemie.united_chemie.doc_events.sales_invoice.on_update",
         "on_update_after_submit": "united_chemie.united_chemie.doc_events.sales_invoice.on_update_after_submit"
     },
     "Stock Entry": {
