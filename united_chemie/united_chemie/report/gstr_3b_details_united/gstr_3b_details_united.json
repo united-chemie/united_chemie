@@ -1,5 +1,5 @@
 {
- "add_total_row": 0,
+ "add_total_row": 1,
  "add_translate_data": 0,
  "columns": [],
  "creation": "2026-10-23 17:36:36.333136",
@@ -12,7 +12,7 @@
  "idx": 0,
  "is_standard": "Yes",
  "letter_head": null,
- "modified": "2026-10-23 17:36:36.333136",
+ "modified": "2026-11-20 14:08:46.574739",
  "modified_by": "Administrator",
  "module": "United Chemie",
  "name": "GSTR-3B Details-United",
