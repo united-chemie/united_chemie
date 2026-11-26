@@ -26,9 +26,9 @@ from india_compliance.gst_india.utils import (
     validate_gst_category,
     validate_gstin,
 )
-from india_compliance.income_tax_india.overrides.tax_withholding_category import (
-    get_tax_withholding_accounts,
-)
+# from india_compliance.income_tax_india.overrides.tax_withholding_category import (
+#     get_tax_withholding_accounts,
+# )
 from india_compliance.gst_india.overrides.transaction import (validate_place_of_supply, ignore_gst_validations, validate_company_address_field, validate_mandatory_fields, 
 validate_overseas_gst_category,update_taxable_values,set_reverse_charge_as_per_gst_settings,validate_ecommerce_gstin,validate_hsn_codes,validate_gst_transporter_id, validate_reverse_charge_transaction, validate_gstin_status)
 
